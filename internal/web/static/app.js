@@ -130,13 +130,27 @@ function askDelete(c) {
 
 async function addClient() {
   const user = $("user").value.trim();
-  if (!user) return;
-  const resp = await api(inboundPath(), { method: "POST", body: JSON.stringify({ user }) });
-  const c = await resp.json();
-  $("user").value = "";
-  await loadInbounds();
-  await loadClients();
-  await openQR(c);
+  if (!user) {
+    showError("Укажите id или имя пользователя панели, для которого создать клиента.");
+    $("user").focus();
+    return;
+  }
+  const button = $("add");
+  const label = button.lastChild.textContent;
+  button.disabled = true;
+  button.lastChild.textContent = "Создаю…";
+  showError(null);
+  try {
+    const resp = await api(inboundPath(), { method: "POST", body: JSON.stringify({ user }) });
+    const c = await resp.json();
+    $("user").value = "";
+    await loadInbounds();
+    await loadClients();
+    await openQR(c);
+  } finally {
+    button.disabled = false;
+    button.lastChild.textContent = label;
+  }
 }
 
 async function main() {
@@ -151,6 +165,9 @@ async function main() {
   $("refresh").addEventListener("click", () => loadClients().catch(showError));
   $("logout").addEventListener("click", () => location.assign(state.loginPath));
   $("add").addEventListener("click", () => addClient().catch(showError));
+  $("user").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !$("add").disabled) addClient().catch(showError);
+  });
   $("confirm-no").addEventListener("click", () => $("confirm").close());
   $("confirm-yes").addEventListener("click", async () => {
     $("confirm").close();

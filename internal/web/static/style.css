@@ -52,4 +52,6 @@ dialog::backdrop { background: rgba(1, 4, 9, 0.6); }
 .warn { color: var(--dark-2); font-size: 13px; }
 .error { color: var(--red-text); }
 #user { width: 280px; }
+.actions label { align-self: center; color: var(--dark-2); font-size: 13px; margin-right: auto; }
+.btn:disabled { opacity: 0.6; cursor: progress; }
 .hidden { display: none; }
