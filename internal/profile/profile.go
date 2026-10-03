@@ -92,7 +92,7 @@ func Subnet(in Inbound, prefixLen int) (netip.Prefix, netip.Addr, error) {
 			return subnet, subnet.Addr().Next(), nil
 		}
 	}
-	return netip.Prefix{}, netip.Addr{}, fmt.Errorf("cannot infer subnet of %q: %w", in.Tag, ErrInvalid)
+	return netip.Prefix{}, netip.Addr{}, fmt.Errorf("cannot infer the client subnet of %q: set settings.address on the inbound or pass an address: %w", in.Tag, ErrInvalid)
 }
 
 func used(in Inbound) map[netip.Addr]bool {
