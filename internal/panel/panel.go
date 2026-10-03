@@ -113,7 +113,10 @@ func (c *Client) do(ctx context.Context, cred Credentials, method, path string, 
 	if err := json.Unmarshal(data, &env); err != nil {
 		return fmt.Errorf("decode envelope: %w", err)
 	}
-	if err := json.Unmarshal(env.Response, out); err != nil {
+	// UseNumber keeps integers beyond 2^53 in profile configs intact.
+	dec := json.NewDecoder(bytes.NewReader(env.Response))
+	dec.UseNumber()
+	if err := dec.Decode(out); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil

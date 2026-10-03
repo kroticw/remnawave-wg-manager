@@ -209,3 +209,22 @@ func TestCreateOnEmptyInbound(t *testing.T) {
 		t.Fatalf("client %+v", c)
 	}
 }
+
+func TestCreateRejectsBadAddress(t *testing.T) {
+	f := newFake(t, `[{"email":"cudy","publicKey":"manualPub","allowedIPs":["10.66.0.2/32"]}]`)
+	m := manager(f)
+	for addr, want := range map[string]error{
+		"10.66.0.1":   profile.ErrInvalid, // server
+		"10.66.0.255": profile.ErrInvalid, // broadcast
+		"10.67.0.5":   profile.ErrInvalid, // outside the subnet
+		"fd00::5":     profile.ErrInvalid, // IPv6
+		"10.66.0.2":   profile.ErrConflict,
+	} {
+		if _, err := m.Create(context.Background(), cred, "p", "wg", "alice", addr); !errors.Is(err, want) {
+			t.Errorf("%s: err %v, want %v", addr, err, want)
+		}
+	}
+	if f.updates != 0 {
+		t.Fatal("rejected addresses must not touch the profile")
+	}
+}

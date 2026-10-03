@@ -212,6 +212,8 @@ func (m *Manager) Create(ctx context.Context, cred panel.Credentials, profileNam
 		}
 	} else if a, err = netip.ParseAddr(addr); err != nil {
 		return ClientInfo{}, fmt.Errorf("address %q: %w", addr, profile.ErrInvalid)
+	} else if err = profile.ValidateAddress(in, m.SubnetPrefix, a); err != nil {
+		return ClientInfo{}, err
 	}
 	psk, err := wgkey.NewPSK()
 	if err != nil {

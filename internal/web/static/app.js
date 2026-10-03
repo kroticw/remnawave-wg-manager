@@ -105,7 +105,9 @@ async function openQR(c) {
   state.qrEmail = c.email;
   $("qr-title").textContent = (c.username || c.email) + " — " + c.address;
   const svg = await (await api(inboundPath() + "/" + encodeURIComponent(c.email) + "/qr.svg")).blob();
+  const previous = $("qr-img").src;
   $("qr-img").src = URL.createObjectURL(svg);
+  if (previous.startsWith("blob:")) URL.revokeObjectURL(previous);
   $("qr-dialog").showModal();
 }
 
@@ -116,7 +118,8 @@ async function downloadConfig() {
   a.href = url;
   a.download = "wg-" + state.qrEmail + ".conf";
   a.click();
-  URL.revokeObjectURL(url);
+  // Firefox may not start the download before an immediate revoke.
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 function askDelete(c) {

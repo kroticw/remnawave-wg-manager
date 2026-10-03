@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -104,5 +106,28 @@ func TestCreateUser(t *testing.T) {
 	}
 	if u.ID != 77 || body["username"] != "alice" || body["expireAt"] == nil {
 		t.Fatalf("user %+v body %v", u, body)
+	}
+}
+
+func TestProfileKeepsBigIntegers(t *testing.T) {
+	var sent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			b, _ := io.ReadAll(r.Body)
+			sent = string(b)
+		}
+		_, _ = w.Write([]byte(`{"response":{"uuid":"u1","name":"p","config":{"big":9007199254740993},"nodes":[]}}`))
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
+	p, err := c.GetProfile(context.Background(), Credentials{Token: "x"}, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UpdateProfileConfig(context.Background(), Credentials{Token: "x"}, "u1", p.Config); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sent, "9007199254740993") {
+		t.Fatalf("big integer changed: %s", sent)
 	}
 }

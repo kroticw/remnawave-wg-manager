@@ -3,10 +3,13 @@
 package profile
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
+	"strconv"
 )
 
 // Errors returned by profile edits; callers map them to HTTP statuses.
@@ -33,32 +36,77 @@ type Inbound struct {
 	Peers     []Peer
 }
 
-type rawInbound struct {
-	Tag      string `json:"tag"`
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
-	Settings struct {
-		SecretKey string   `json:"secretKey"`
-		Address   []string `json:"address"`
-		Peers     []Peer   `json:"peers"`
-	} `json:"settings"`
-}
-
 // WireGuardInbounds returns every WireGuard inbound of the configuration.
+// Fields are read leniently: a malformed peer or a port given as a string
+// must not hide the whole inbound.
 func WireGuardInbounds(cfg map[string]any) []Inbound {
 	list, _ := cfg["inbounds"].([]any)
 	var out []Inbound
 	for _, item := range list {
-		var r rawInbound
-		if err := remarshal(item, &r); err != nil || r.Protocol != "wireguard" {
+		m, _ := item.(map[string]any)
+		if m == nil || m["protocol"] != "wireguard" {
 			continue
 		}
-		out = append(out, Inbound{
-			Tag: r.Tag, Port: r.Port, SecretKey: r.Settings.SecretKey,
-			Address: r.Settings.Address, Peers: r.Settings.Peers,
-		})
+		settings, _ := m["settings"].(map[string]any)
+		in := Inbound{
+			Tag:       text(m["tag"]),
+			Port:      port(m["port"]),
+			SecretKey: text(settings["secretKey"]),
+			Address:   texts(settings["address"]),
+		}
+		peers, _ := settings["peers"].([]any)
+		for _, item := range peers {
+			pm, _ := item.(map[string]any)
+			if pm == nil {
+				continue
+			}
+			in.Peers = append(in.Peers, Peer{
+				Email:        text(pm["email"]),
+				PublicKey:    text(pm["publicKey"]),
+				PreSharedKey: text(pm["preSharedKey"]),
+				AllowedIPs:   texts(pm["allowedIPs"]),
+			})
+		}
+		out = append(out, in)
 	}
 	return out
+}
+
+// text renders a scalar JSON value as a string; missing values become "".
+func text(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	default:
+		return fmt.Sprint(t)
+	}
+}
+
+// texts accepts both a list of strings and a single string.
+func texts(v any) []string {
+	switch t := v.(type) {
+	case string:
+		return []string{t}
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, x := range t {
+			out = append(out, text(x))
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// port reads a port given as a number or a numeric string; ranges give 0.
+func port(v any) int {
+	n, err := strconv.Atoi(text(v))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // FindInbound returns the WireGuard inbound with the given tag.
@@ -107,40 +155,69 @@ func used(in Inbound) map[netip.Addr]bool {
 	return u
 }
 
-func free(in Inbound, prefixLen int) ([]netip.Addr, error) {
-	subnet, server, err := Subnet(in, prefixLen)
-	if err != nil {
-		return nil, err
-	}
-	u := used(in)
-	var out []netip.Addr
-	for a := subnet.Addr().Next(); subnet.Contains(a); a = a.Next() {
-		if !subnet.Contains(a.Next()) { // broadcast
-			break
-		}
-		if a != server && !u[a] {
-			out = append(out, a)
-		}
-	}
-	return out, nil
+// broadcast returns the last address of an IPv4 prefix.
+func broadcast(p netip.Prefix) netip.Addr {
+	b := p.Masked().Addr().As4()
+	v := binary.BigEndian.Uint32(b[:]) | (1<<(32-p.Bits()) - 1)
+	binary.BigEndian.PutUint32(b[:], v)
+	return netip.AddrFrom4(b)
+}
+
+// isHost reports whether a is a usable host address of the subnet.
+func isHost(subnet netip.Prefix, a netip.Addr) bool {
+	return a.Is4() && subnet.Contains(a) && a != subnet.Masked().Addr() && a != broadcast(subnet)
 }
 
 // NextFreeAddress returns the lowest unused client address of the inbound.
+// It stops at the first free address, so wide subnets cost nothing extra.
 func NextFreeAddress(in Inbound, prefixLen int) (netip.Addr, error) {
-	f, err := free(in, prefixLen)
+	subnet, server, err := Subnet(in, prefixLen)
 	if err != nil {
 		return netip.Addr{}, err
 	}
-	if len(f) == 0 {
-		return netip.Addr{}, fmt.Errorf("no free addresses in %q: %w", in.Tag, ErrConflict)
+	u := used(in)
+	for a := subnet.Masked().Addr().Next(); isHost(subnet, a); a = a.Next() {
+		if a != server && !u[a] {
+			return a, nil
+		}
 	}
-	return f[0], nil
+	return netip.Addr{}, fmt.Errorf("no free addresses in %q: %w", in.Tag, ErrConflict)
 }
 
 // FreeCount returns how many client addresses of the inbound are unused.
 func FreeCount(in Inbound, prefixLen int) (int, error) {
-	f, err := free(in, prefixLen)
-	return len(f), err
+	subnet, server, err := Subnet(in, prefixLen)
+	if err != nil {
+		return 0, err
+	}
+	n := 1<<(32-subnet.Bits()) - 2
+	if isHost(subnet, server) {
+		n--
+	}
+	for a := range used(in) {
+		if a != server && isHost(subnet, a) {
+			n--
+		}
+	}
+	return max(n, 0), nil
+}
+
+// ValidateAddress checks an address chosen by hand for a new client: an
+// IPv4 host address of the inbound subnet that is neither the server's nor
+// taken by another peer. When the subnet is unknown only the last check runs.
+func ValidateAddress(in Inbound, prefixLen int, a netip.Addr) error {
+	if !a.Is4() {
+		return fmt.Errorf("address %s: only IPv4 is supported: %w", a, ErrInvalid)
+	}
+	if subnet, server, err := Subnet(in, prefixLen); err == nil {
+		if !isHost(subnet, a) || a == server {
+			return fmt.Errorf("address %s is not a free host address of %s: %w", a, subnet, ErrInvalid)
+		}
+	}
+	if used(in)[a] {
+		return fmt.Errorf("address %s: %w", a, ErrConflict)
+	}
+	return nil
 }
 
 // AddPeer returns a copy of cfg with the peer appended to the inbound.
@@ -185,7 +262,7 @@ func RemovePeer(cfg map[string]any, tag, email string) (map[string]any, error) {
 	kept := make([]any, 0, len(peers))
 	found := false
 	for _, item := range peers {
-		if m, ok := item.(map[string]any); ok && m["email"] == email {
+		if m, ok := item.(map[string]any); ok && text(m["email"]) == email {
 			found = true
 			continue
 		}
@@ -224,7 +301,10 @@ func remarshal(in, out any) error {
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
-	if err := json.Unmarshal(b, out); err != nil {
+	// UseNumber keeps integers beyond 2^53 intact through the copy.
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	if err := dec.Decode(out); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	return nil
