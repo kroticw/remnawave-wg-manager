@@ -10,7 +10,8 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 LABEL org.opencontainers.image.source="https://github.com/kroticw/remnawave-wg-manager" \
-      org.opencontainers.image.description="WireGuard peer management for Remnawave"
+      org.opencontainers.image.description="WireGuard peer management for Remnawave" \
+      org.opencontainers.image.licenses="MIT"
 COPY --from=build /out/remnawave-wg-manager /remnawave-wg-manager
 USER nonroot:nonroot
 EXPOSE 8080

@@ -95,3 +95,7 @@ make build
 - [Montserrat](https://github.com/JulietaUla/Montserrat) font, SIL Open Font
   License 1.1 ([internal/web/static/fonts/OFL.txt](internal/web/static/fonts/OFL.txt)).
 - [Tabler Icons](https://github.com/tabler/tabler-icons), MIT License.
+
+## License
+
+[MIT](LICENSE)
