@@ -1,0 +1,12 @@
+services:
+  remnawave-wg-manager:
+    image: ghcr.io/kroticw/remnawave-wg-manager:latest
+    container_name: remnawave-wg-manager
+    restart: unless-stopped
+    environment:
+      PANEL_URL: http://remnawave:3000
+      BASE_PATH: /wg
+    networks: [remnawave-network]
+networks:
+  remnawave-network:
+    external: true

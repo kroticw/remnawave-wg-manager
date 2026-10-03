@@ -93,7 +93,11 @@ async function loadInbounds() {
     o.textContent = inb.profile + " / " + inb.tag + " — " + inb.endpoint + ", свободно " + inb.free;
     select.appendChild(o);
   });
-  state.inbound = list[0] || null;
+  // Keep the current selection across reloads; the free-address count changes after edits.
+  const keep = state.inbound;
+  const idx = keep ? list.findIndex((x) => x.profile === keep.profile && x.tag === keep.tag) : -1;
+  state.inbound = list[Math.max(idx, 0)] || null;
+  select.value = String(Math.max(idx, 0));
   select.onchange = () => { state.inbound = list[Number(select.value)]; loadClients().catch(showError); };
 }
 
@@ -127,6 +131,7 @@ async function addClient() {
   const resp = await api(inboundPath(), { method: "POST", body: JSON.stringify({ user }) });
   const c = await resp.json();
   $("user").value = "";
+  await loadInbounds();
   await loadClients();
   await openQR(c);
 }
@@ -148,6 +153,7 @@ async function main() {
     $("confirm").close();
     try {
       await api(inboundPath() + "/" + encodeURIComponent(state.pendingDelete.email), { method: "DELETE" });
+      await loadInbounds();
       await loadClients();
     } catch (e) { showError(e); }
   });

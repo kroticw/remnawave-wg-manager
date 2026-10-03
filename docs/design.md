@@ -119,6 +119,11 @@ MCP-клиенты не видят `localStorage`, поэтому MCP-эндпо
 запросом к API панели. Заголовок `x-remnawave-client-type` для API-токена не
 добавляется.
 
+У API-токенов панели 3 есть права (scopes). Сервису достаточно пяти:
+`config-profiles:read`, `config-profiles:write`, `nodes:read`, `users:read`,
+`users:write`. Выпускать токены может только сессия администратора, сам
+API-токен этого не умеет.
+
 ## Модель данных
 
 Источник правды — массив `settings.peers` WireGuard-инбаунда в конфиге
@@ -357,6 +362,8 @@ API-токеном панели.
 | `CLIENT_DNS` | DNS в конфиге клиента | `1.1.1.1, 8.8.8.8` |
 | `CLIENT_MTU` | MTU в конфиге клиента | `1380` |
 | `LOGIN_PATH` | страница входа панели | `/auth/login` |
+| `LISTEN` | адрес, на котором слушает сервис | `:8080` |
+| `FORWARDED_HEADERS` | слать панели `X-Forwarded-Proto: https`; `false` — не слать | `true` |
 
 Секретов среди них нет.
 

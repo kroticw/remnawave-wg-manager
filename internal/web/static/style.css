@@ -51,4 +51,5 @@ dialog::backdrop { background: rgba(1, 4, 9, 0.6); }
 .qr { background: #fff; border-radius: var(--radius); padding: 8px; width: 260px; }
 .warn { color: var(--dark-2); font-size: 13px; }
 .error { color: var(--red-text); }
+#user { width: 280px; }
 .hidden { display: none; }
