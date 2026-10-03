@@ -1,0 +1,54 @@
+@font-face { font-family: Montserrat; font-weight: 400; font-display: swap;
+  src: url(fonts/montserrat-latin-400.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: Montserrat; font-weight: 400; font-display: swap;
+  src: url(fonts/montserrat-cyrillic-400.woff2) format("woff2"); unicode-range: U+0400-04FF; }
+@font-face { font-family: Montserrat; font-weight: 600; font-display: swap;
+  src: url(fonts/montserrat-latin-600.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: Montserrat; font-weight: 600; font-display: swap;
+  src: url(fonts/montserrat-cyrillic-600.woff2) format("woff2"); unicode-range: U+0400-04FF; }
+
+:root {
+  --dark-0: #c9d1d9; --dark-1: #b1bac4; --dark-2: #8b949e; --dark-3: #6e7681;
+  --dark-4: #484f58; --dark-5: #30363d; --dark-6: #21262d; --dark-7: #161b22;
+  --dark-8: #0d1117; --dark-9: #010409;
+  --cyan: #0c8599; --cyan-light: #063942; --cyan-light-hover: #08505d; --cyan-text: #e3fafc;
+  --red-light: #641515; --red-light-hover: #8d1d1d; --red-text: #fff5f5;
+  --radius: 8px;
+  --font: Montserrat, "Apple Color Emoji", sans-serif;
+  --mono: "Fira Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100vh; background: var(--dark-7); color: var(--dark-0);
+  font-family: var(--font); font-size: 14px; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-weight: 600; margin: 0; }
+header { display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+header h1 { font-size: 18px; flex: 1; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
+.card { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius); padding: 16px; animation: fadeIn 200ms linear both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+  border: 0; border-radius: var(--radius); font: 600 13px var(--font); cursor: pointer;
+  background: var(--cyan-light); color: var(--cyan-text); transition: all 0.2s ease; }
+.btn:hover { background: var(--cyan-light-hover); }
+.btn.danger { background: var(--red-light); color: var(--red-text); }
+.btn.danger:hover { background: var(--red-light-hover); }
+.btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+select, input { height: 34px; padding: 0 10px; border-radius: var(--radius);
+  border: 1px solid var(--dark-4); background: var(--dark-6); color: var(--dark-0); font: 14px var(--font); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--dark-5); }
+th { color: var(--dark-2); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+td.mono { font-family: var(--mono); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.badge.ok { background: var(--cyan-light); color: var(--cyan-text); }
+.badge.muted { background: var(--dark-5); color: var(--dark-2); }
+.actions { display: flex; gap: 8px; justify-content: flex-end; }
+dialog { background: var(--dark-6); color: var(--dark-0); border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius); padding: 20px; max-width: 420px; }
+dialog::backdrop { background: rgba(1, 4, 9, 0.6); }
+.qr { background: #fff; border-radius: var(--radius); padding: 8px; width: 260px; }
+.warn { color: var(--dark-2); font-size: 13px; }
+.error { color: var(--red-text); }
+.hidden { display: none; }
