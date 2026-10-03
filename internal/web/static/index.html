@@ -23,10 +23,13 @@
     <button class="btn" id="logout"><svg><use href="#i-logout"/></svg>Выйти</button>
   </header>
   <main>
-    <section class="card">
+    <section class="card raised">
       <div class="actions">
         <label for="user">Новый клиент для пользователя панели</label>
-        <input id="user" placeholder="id или имя, например alice-phone" autocomplete="off">
+        <div class="combo">
+          <input id="user" placeholder="id или имя, например alice-phone" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest">
+          <ul id="suggest" class="suggest hidden" role="listbox"></ul>
+        </div>
         <button class="btn" id="add"><svg><use href="#i-plus"/></svg>Добавить клиента</button>
       </div>
       <p class="warn">Любое изменение перезапускает Xray на нодах профиля: соединения через ноды прервутся на пару секунд.</p>

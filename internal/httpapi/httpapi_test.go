@@ -32,6 +32,9 @@ func (f *fakeSvc) Clients(context.Context, panel.Credentials, string, string) ([
 func (f *fakeSvc) Create(_ context.Context, _ panel.Credentials, _, _, user, _ string) (clients.ClientInfo, error) {
 	return clients.ClientInfo{Email: "76", Username: user}, f.err
 }
+func (f *fakeSvc) Users(context.Context, panel.Credentials) ([]panel.User, error) {
+	return []panel.User{{ID: 76, Username: "alice", Status: "ACTIVE"}}, f.err
+}
 func (f *fakeSvc) Delete(context.Context, panel.Credentials, string, string, string) error {
 	return f.err
 }
@@ -152,5 +155,16 @@ func TestConfigDownloadQuotesFilename(t *testing.T) {
 	_, params, err := mime.ParseMediaType(w.Header().Get("Content-Disposition"))
 	if err != nil || params["filename"] != `wg-a"b.conf` {
 		t.Fatalf("Content-Disposition %q: params %v, err %v", w.Header().Get("Content-Disposition"), params, err)
+	}
+}
+
+func TestUsers(t *testing.T) {
+	h := New(&fakeSvc{}, "/wg", "/auth/login", static)
+	w := do(t, h, http.MethodGet, "/wg/api/users", "jwt", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"username":"alice"`) {
+		t.Fatalf("code %d body %s", w.Code, w.Body)
+	}
+	if w := do(t, h, http.MethodGet, "/wg/api/users", "", ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without token: code %d", w.Code)
 	}
 }

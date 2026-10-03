@@ -32,6 +32,7 @@ type Panel interface {
 	GetUser(ctx context.Context, cred panel.Credentials, id int64) (panel.User, error)
 	GetUserByUsername(ctx context.Context, cred panel.Credentials, name string) (panel.User, error)
 	CreateUser(ctx context.Context, cred panel.Credentials, name string) (panel.User, error)
+	ListUsers(ctx context.Context, cred panel.Credentials) ([]panel.User, error)
 }
 
 // Manager runs client operations. It serializes profile edits.
@@ -89,6 +90,11 @@ func (m *Manager) endpoint(ctx context.Context, cred panel.Credentials, p panel.
 		host = addr
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port)), nil
+}
+
+// Users lists panel users for picking the owner of a new client.
+func (m *Manager) Users(ctx context.Context, cred panel.Credentials) ([]panel.User, error) {
+	return m.Panel.ListUsers(ctx, cred)
 }
 
 // Inbounds lists WireGuard inbounds of all profiles.

@@ -44,7 +44,11 @@ type Profile struct {
 type User struct {
 	ID       int64  `json:"id"`
 	Username string `json:"username"`
+	Status   string `json:"status,omitempty"`
 }
+
+// usersPageSize is the page size for listing users; the panel allows up to 1000.
+var usersPageSize = 500
 
 // Client calls the panel API.
 type Client struct {
@@ -161,6 +165,25 @@ func (c *Client) NodeAddress(ctx context.Context, cred Credentials, uuid string)
 		return "", err
 	}
 	return r.Address, nil
+}
+
+// ListUsers returns all panel users, reading every page.
+func (c *Client) ListUsers(ctx context.Context, cred Credentials) ([]User, error) {
+	var out []User
+	for {
+		var page struct {
+			Total int    `json:"total"`
+			Users []User `json:"users"`
+		}
+		path := fmt.Sprintf("/api/users?start=%d&size=%d", len(out), usersPageSize)
+		if err := c.do(ctx, cred, http.MethodGet, path, nil, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Users...)
+		if len(page.Users) == 0 || len(out) >= page.Total {
+			return out, nil
+		}
+	}
 }
 
 // GetUser returns a user by id.

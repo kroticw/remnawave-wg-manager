@@ -71,6 +71,13 @@ func (f *fakePanel) GetUserByUsername(_ context.Context, _ panel.Credentials, na
 	}
 	return panel.User{}, &panel.Error{Status: 404}
 }
+func (f *fakePanel) ListUsers(context.Context, panel.Credentials) ([]panel.User, error) {
+	var out []panel.User
+	for id, n := range f.users {
+		out = append(out, panel.User{ID: id, Username: n})
+	}
+	return out, nil
+}
 func (f *fakePanel) CreateUser(_ context.Context, _ panel.Credentials, name string) (panel.User, error) {
 	f.nextID++
 	f.users[f.nextID] = name
@@ -226,5 +233,13 @@ func TestCreateRejectsBadAddress(t *testing.T) {
 	}
 	if f.updates != 0 {
 		t.Fatal("rejected addresses must not touch the profile")
+	}
+}
+
+func TestUsers(t *testing.T) {
+	f := newFake(t, `[]`)
+	users, err := manager(f).Users(context.Background(), cred)
+	if err != nil || len(users) != 1 || users[0].Username != "alice" {
+		t.Fatalf("users %+v, err %v", users, err)
 	}
 }

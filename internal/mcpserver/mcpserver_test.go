@@ -24,6 +24,7 @@ func (f *fakeSvc) Clients(context.Context, panel.Credentials, string, string) ([
 func (f *fakeSvc) Create(context.Context, panel.Credentials, string, string, string, string) (clients.ClientInfo, error) {
 	return clients.ClientInfo{Email: "76"}, nil
 }
+func (f *fakeSvc) Users(context.Context, panel.Credentials) ([]panel.User, error) { return nil, nil }
 func (f *fakeSvc) Delete(context.Context, panel.Credentials, string, string, string) error {
 	return nil
 }

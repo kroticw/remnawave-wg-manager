@@ -23,6 +23,7 @@ const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 's
 // Service is the set of client operations the API exposes.
 type Service interface {
 	Inbounds(ctx context.Context, cred panel.Credentials) ([]clients.InboundInfo, error)
+	Users(ctx context.Context, cred panel.Credentials) ([]panel.User, error)
 	Clients(ctx context.Context, cred panel.Credentials, profile, tag string) ([]clients.ClientInfo, error)
 	Create(ctx context.Context, cred panel.Credentials, profile, tag, user, address string) (clients.ClientInfo, error)
 	Delete(ctx context.Context, cred panel.Credentials, profile, tag, email string) error
@@ -104,6 +105,14 @@ func New(svc Service, basePath, loginPath string, static fs.FS) http.Handler {
 	})
 	mux.HandleFunc("GET "+b+"/api/inbounds", authed(func(w http.ResponseWriter, r *http.Request, c panel.Credentials) {
 		list, err := svc.Inbounds(r.Context(), c)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	}))
+	mux.HandleFunc("GET "+b+"/api/users", authed(func(w http.ResponseWriter, r *http.Request, c panel.Credentials) {
+		list, err := svc.Users(r.Context(), c)
 		if err != nil {
 			writeErr(w, err)
 			return

@@ -131,3 +131,29 @@ func TestProfileKeepsBigIntegers(t *testing.T) {
 		t.Fatalf("big integer changed: %s", sent)
 	}
 }
+
+func TestListUsersPaginates(t *testing.T) {
+	old := usersPageSize
+	usersPageSize = 2
+	defer func() { usersPageSize = old }()
+	all := []string{`{"id":1,"username":"a","status":"ACTIVE"}`, `{"id":2,"username":"b","status":"DISABLED"}`, `{"id":3,"username":"c","status":"ACTIVE"}`}
+	var starts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := r.URL.Query().Get("start")
+		starts = append(starts, start+"/"+r.URL.Query().Get("size"))
+		page := all[2:]
+		if start == "0" {
+			page = all[:2]
+		}
+		_, _ = w.Write([]byte(`{"response":{"total":3,"users":[` + strings.Join(page, ",") + `]}}`))
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
+	users, err := c.ListUsers(context.Background(), Credentials{Token: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 3 || users[1].Username != "b" || users[1].Status != "DISABLED" || strings.Join(starts, ",") != "0/2,2/2" {
+		t.Fatalf("users %+v, requests %v", users, starts)
+	}
+}

@@ -1,6 +1,7 @@
 "use strict";
 
-const state = { token: "", inbound: null, loginPath: "/auth/login", pendingDelete: null, qrEmail: null };
+const state = { token: "", inbound: null, loginPath: "/auth/login", pendingDelete: null, qrEmail: null, clients: [], users: null, items: [], active: -1 };
+const NAME_RE = /^[a-z0-9][a-z0-9_-]{2,31}$/;
 const $ = (id) => document.getElementById(id);
 
 function readToken() {
@@ -63,6 +64,7 @@ async function loadClients() {
   body.replaceChildren();
   if (!state.inbound) return;
   const list = await (await api(inboundPath())).json();
+  state.clients = list;
   for (const c of list) {
     const tr = document.createElement("tr");
     tr.appendChild(cell(c.username || "—"));
@@ -128,6 +130,117 @@ function askDelete(c) {
   $("confirm").showModal();
 }
 
+// Suggestions for the user field: panel users filtered by the input, plus
+// an item to create a new user when the name is free and valid.
+function buildItems(query) {
+  const q = query.trim().toLowerCase();
+  const users = state.users || [];
+  const taken = new Set(state.clients.map((c) => c.email));
+  const items = users
+    .filter((u) => !q || u.username.toLowerCase().includes(q) || String(u.id) === q)
+    .sort((a, b) => a.username.localeCompare(b.username))
+    .slice(0, 8)
+    .map((u) => {
+      const has = taken.has(String(u.id));
+      const meta = ["id " + u.id];
+      if (u.status && u.status !== "ACTIVE") meta.push(u.status.toLowerCase());
+      if (has) meta.push("уже есть клиент");
+      return { value: u.username, title: u.username, meta: meta.join(" · "), disabled: has };
+    });
+  const exact = users.some((u) => u.username.toLowerCase() === q || String(u.id) === q);
+  if (q && !exact) {
+    if (NAME_RE.test(q)) {
+      items.push({ value: q, title: "Создать пользователя «" + q + "»", meta: "новый пользователь панели" });
+    } else if (!/^\d+$/.test(q)) {
+      items.push({ hint: true, title: "Имя: строчные латинские буквы, цифры, - и _, от 3 до 32 символов" });
+    }
+  }
+  if (!items.length) items.push({ hint: true, title: q ? "Ничего не найдено" : "Пользователей пока нет" });
+  return items;
+}
+
+function selectable(i) {
+  const it = state.items[i];
+  return it && !it.hint && !it.disabled;
+}
+
+function renderSuggest() {
+  const list = $("suggest");
+  list.replaceChildren();
+  state.items.forEach((it, i) => {
+    const li = document.createElement("li");
+    li.setAttribute("role", "option");
+    li.className = (it.hint ? "hint" : "") + (it.disabled ? " disabled" : "") + (i === state.active ? " active" : "");
+    li.setAttribute("aria-selected", String(i === state.active));
+    const title = document.createElement("span");
+    title.textContent = it.title;
+    li.appendChild(title);
+    if (it.meta) {
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = it.meta;
+      li.appendChild(meta);
+    }
+    // mousedown keeps focus in the field, so blur does not close the list first
+    li.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      if (selectable(i)) choose(i);
+    });
+    list.appendChild(li);
+  });
+  list.classList.remove("hidden");
+  $("user").setAttribute("aria-expanded", "true");
+}
+
+async function openSuggest() {
+  if (!state.users) state.users = await (await api("users")).json();
+  if (document.activeElement !== $("user")) return;
+  state.items = buildItems($("user").value);
+  state.active = -1;
+  renderSuggest();
+}
+
+function closeSuggest() {
+  $("suggest").classList.add("hidden");
+  $("user").setAttribute("aria-expanded", "false");
+  state.active = -1;
+}
+
+function choose(i) {
+  $("user").value = state.items[i].value;
+  closeSuggest();
+}
+
+function onUserKey(e) {
+  const open = !$("suggest").classList.contains("hidden");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!open) {
+      openSuggest().catch(showError);
+      return;
+    }
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    for (let n = 0, i = state.active; n < state.items.length; n++) {
+      i = (i + step + state.items.length) % state.items.length;
+      if (selectable(i)) {
+        state.active = i;
+        break;
+      }
+    }
+    renderSuggest();
+  } else if (e.key === "Escape") {
+    closeSuggest();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (open && selectable(state.active)) {
+      choose(state.active);
+    } else if (!$("add").disabled) {
+      closeSuggest();
+      addClient().catch(showError);
+    }
+  }
+}
+
 async function addClient() {
   const user = $("user").value.trim();
   if (!user) {
@@ -144,6 +257,8 @@ async function addClient() {
     const resp = await api(inboundPath(), { method: "POST", body: JSON.stringify({ user }) });
     const c = await resp.json();
     $("user").value = "";
+    state.users = null; // a new panel user may have been created
+    closeSuggest();
     await loadInbounds();
     await loadClients();
     await openQR(c);
@@ -165,9 +280,11 @@ async function main() {
   $("refresh").addEventListener("click", () => loadClients().catch(showError));
   $("logout").addEventListener("click", () => location.assign(state.loginPath));
   $("add").addEventListener("click", () => addClient().catch(showError));
-  $("user").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !$("add").disabled) addClient().catch(showError);
-  });
+  $("user").addEventListener("focus", () => openSuggest().catch(showError));
+  $("user").addEventListener("click", () => openSuggest().catch(showError));
+  $("user").addEventListener("input", () => openSuggest().catch(showError));
+  $("user").addEventListener("blur", closeSuggest);
+  $("user").addEventListener("keydown", onUserKey);
   $("confirm-no").addEventListener("click", () => $("confirm").close());
   $("confirm-yes").addEventListener("click", async () => {
     $("confirm").close();

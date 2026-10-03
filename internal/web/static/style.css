@@ -54,4 +54,18 @@ dialog::backdrop { background: rgba(1, 4, 9, 0.6); }
 #user { width: 280px; }
 .actions label { align-self: center; color: var(--dark-2); font-size: 13px; margin-right: auto; }
 .btn:disabled { opacity: 0.6; cursor: progress; }
+/* Cards animate opacity, which gives each its own stacking context; lift the
+   card with the suggestion list above the cards that follow it. */
+.raised { position: relative; z-index: 2; }
+.combo { position: relative; }
+.suggest { position: absolute; top: calc(100% + 4px); left: 0; width: max-content; min-width: 100%; max-width: min(520px, 90vw); z-index: 10; list-style: none;
+  margin: 0; padding: 4px; max-height: 300px; overflow-y: auto; background: var(--dark-6);
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(1, 4, 9, 0.5); }
+.suggest li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; white-space: nowrap;
+  padding: 7px 10px; border-radius: 4px; cursor: pointer; }
+.suggest li:hover, .suggest li.active { background: var(--dark-5); }
+.suggest li.disabled { opacity: 0.5; cursor: not-allowed; }
+.suggest li.hint { cursor: default; color: var(--dark-2); font-size: 13px; }
+.suggest li.hint:hover { background: none; }
+.suggest .meta { color: var(--dark-2); font-size: 12px; white-space: nowrap; }
 .hidden { display: none; }
