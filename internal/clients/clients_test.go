@@ -19,6 +19,7 @@ type fakePanel struct {
 	users     map[int64]string
 	nextID    int64
 	updates   int
+	nodes     []panel.Node
 	beforeGet func(f *fakePanel)
 }
 
@@ -29,7 +30,8 @@ func newFake(t *testing.T, peers string) *fakePanel {
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	return &fakePanel{cfg: cfg, users: map[int64]string{76: "alice"}, nextID: 100}
+	return &fakePanel{cfg: cfg, users: map[int64]string{76: "alice"}, nextID: 100,
+		nodes: []panel.Node{{UUID: "n1", Address: "203.0.113.1", IsConnected: true}}}
 }
 
 // clone returns a deep copy, as a real panel returns a fresh document on every read.
@@ -40,22 +42,34 @@ func clone(cfg map[string]any) map[string]any {
 	return out
 }
 
+func (f *fakePanel) nodeUUIDs() []string {
+	var out []string
+	for _, n := range f.nodes {
+		out = append(out, n.UUID)
+	}
+	return out
+}
 func (f *fakePanel) ListProfiles(context.Context, panel.Credentials) ([]panel.Profile, error) {
-	return []panel.Profile{{UUID: "u1", Name: "p", Config: clone(f.cfg), NodeUUIDs: []string{"n1"}}}, nil
+	return []panel.Profile{{UUID: "u1", Name: "p", Config: clone(f.cfg), NodeUUIDs: f.nodeUUIDs()}}, nil
 }
 func (f *fakePanel) GetProfile(context.Context, panel.Credentials, string) (panel.Profile, error) {
 	if f.beforeGet != nil {
 		f.beforeGet(f)
 	}
-	return panel.Profile{UUID: "u1", Name: "p", Config: clone(f.cfg), NodeUUIDs: []string{"n1"}}, nil
+	return panel.Profile{UUID: "u1", Name: "p", Config: clone(f.cfg), NodeUUIDs: f.nodeUUIDs()}, nil
 }
 func (f *fakePanel) UpdateProfileConfig(_ context.Context, _ panel.Credentials, _ string, cfg map[string]any) error {
 	f.cfg = cfg
 	f.updates++
 	return nil
 }
-func (f *fakePanel) NodeAddress(context.Context, panel.Credentials, string) (string, error) {
-	return "203.0.113.1", nil
+func (f *fakePanel) GetNode(_ context.Context, _ panel.Credentials, uuid string) (panel.Node, error) {
+	for _, n := range f.nodes {
+		if n.UUID == uuid {
+			return n, nil
+		}
+	}
+	return panel.Node{}, &panel.Error{Status: 404}
 }
 func (f *fakePanel) GetUser(_ context.Context, _ panel.Credentials, id int64) (panel.User, error) {
 	if n, ok := f.users[id]; ok {
@@ -196,6 +210,65 @@ func TestInbounds(t *testing.T) {
 	want := InboundInfo{Profile: "p", Tag: "wg", Port: 443, Subnet: "10.66.0.0/24", Endpoint: "203.0.113.1:443", Free: 252}
 	if len(list) != 1 || list[0] != want {
 		t.Fatalf("got %+v, want %+v", list, want)
+	}
+}
+
+func endpointOf(t *testing.T, f *fakePanel) string {
+	t.Helper()
+	list, err := manager(f).Inbounds(context.Background(), cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("got %d inbounds", len(list))
+	}
+	return list[0].Endpoint
+}
+
+func TestEndpointSkipsDisconnectedNode(t *testing.T) {
+	f := newFake(t, `[]`)
+	f.nodes = []panel.Node{
+		{UUID: "dead", Address: "198.51.100.1"},
+		{UUID: "live", Address: "203.0.113.2", IsConnected: true},
+	}
+	if got := endpointOf(t, f); got != "203.0.113.2:443" {
+		t.Fatalf("endpoint %q, want the connected node", got)
+	}
+}
+
+func TestEndpointSkipsDisabledNode(t *testing.T) {
+	f := newFake(t, `[]`)
+	f.nodes = []panel.Node{
+		{UUID: "off", Address: "198.51.100.1", IsConnected: true, IsDisabled: true},
+		{UUID: "on", Address: "203.0.113.2", IsConnected: true},
+	}
+	if got := endpointOf(t, f); got != "203.0.113.2:443" {
+		t.Fatalf("endpoint %q, want the enabled node", got)
+	}
+}
+
+func TestEndpointFallsBackToFirstNode(t *testing.T) {
+	f := newFake(t, `[]`)
+	f.nodes = []panel.Node{
+		{UUID: "a", Address: "198.51.100.1"},
+		{UUID: "b", Address: "198.51.100.2"},
+	}
+	if got := endpointOf(t, f); got != "198.51.100.1:443" {
+		t.Fatalf("endpoint %q, want the first node when none is up", got)
+	}
+}
+
+func TestEndpointHostOverridesNodes(t *testing.T) {
+	f := newFake(t, `[]`)
+	f.nodes = []panel.Node{{UUID: "dead", Address: "198.51.100.1"}}
+	m := manager(f)
+	m.EndpointHost = "vpn.example.org"
+	list, err := m.Inbounds(context.Background(), cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Endpoint != "vpn.example.org:443" {
+		t.Fatalf("got %+v", list)
 	}
 }
 

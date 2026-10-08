@@ -156,15 +156,21 @@ func (c *Client) UpdateProfileConfig(ctx context.Context, cred Credentials, uuid
 	return c.do(ctx, cred, http.MethodPatch, "/api/config-profiles", body, nil)
 }
 
-// NodeAddress returns the public address of a node.
-func (c *Client) NodeAddress(ctx context.Context, cred Credentials, uuid string) (string, error) {
-	var r struct {
-		Address string `json:"address"`
+// Node is the part of a panel node the service needs to pick an endpoint.
+type Node struct {
+	UUID        string `json:"uuid"`
+	Address     string `json:"address"`
+	IsConnected bool   `json:"isConnected"`
+	IsDisabled  bool   `json:"isDisabled"`
+}
+
+// GetNode returns the address and state of a node.
+func (c *Client) GetNode(ctx context.Context, cred Credentials, uuid string) (Node, error) {
+	var n Node
+	if err := c.do(ctx, cred, http.MethodGet, "/api/nodes/"+url.PathEscape(uuid), nil, &n); err != nil {
+		return Node{}, err
 	}
-	if err := c.do(ctx, cred, http.MethodGet, "/api/nodes/"+url.PathEscape(uuid), nil, &r); err != nil {
-		return "", err
-	}
-	return r.Address, nil
+	return n, nil
 }
 
 // ListUsers returns all panel users, reading every page.

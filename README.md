@@ -47,7 +47,7 @@ See [docs/design.md](docs/design.md) for the full design (in Russian).
 | `LOGIN_PATH` | Panel login page | `/auth/login` |
 | `LISTEN` | Listen address | `:8080` |
 | `SUBNET_PREFIX` | Client subnet length when the inbound has no `address` | `24` |
-| `ENDPOINT_HOST` | Override the node address in client configs | node address |
+| `ENDPOINT_HOST` | Override the node address in client configs | address of the first connected, enabled node of the profile |
 | `CLIENT_DNS` | DNS in client configs | `1.1.1.1, 8.8.8.8` |
 | `CLIENT_MTU` | MTU in client configs | `1380` |
 | `FORWARDED_HEADERS` | Send `X-Forwarded-Proto: https` to the panel; set `false` to disable | `true` |
