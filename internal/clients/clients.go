@@ -28,7 +28,7 @@ type Panel interface {
 	ListProfiles(ctx context.Context, cred panel.Credentials) ([]panel.Profile, error)
 	GetProfile(ctx context.Context, cred panel.Credentials, uuid string) (panel.Profile, error)
 	UpdateProfileConfig(ctx context.Context, cred panel.Credentials, uuid string, cfg map[string]any) error
-	NodeAddress(ctx context.Context, cred panel.Credentials, uuid string) (string, error)
+	GetNode(ctx context.Context, cred panel.Credentials, uuid string) (panel.Node, error)
 	GetUser(ctx context.Context, cred panel.Credentials, id int64) (panel.User, error)
 	GetUserByUsername(ctx context.Context, cred panel.Credentials, name string) (panel.User, error)
 	CreateUser(ctx context.Context, cred panel.Credentials, name string) (panel.User, error)
@@ -80,16 +80,37 @@ func (m *Manager) findProfile(ctx context.Context, cred panel.Credentials, name 
 func (m *Manager) endpoint(ctx context.Context, cred panel.Credentials, p panel.Profile, port int) (string, error) {
 	host := m.EndpointHost
 	if host == "" {
-		if len(p.NodeUUIDs) == 0 {
-			return "", fmt.Errorf("profile %q has no nodes: %w", p.Name, profile.ErrInvalid)
-		}
-		addr, err := m.Panel.NodeAddress(ctx, cred, p.NodeUUIDs[0])
+		addr, err := m.nodeHost(ctx, cred, p)
 		if err != nil {
 			return "", err
 		}
 		host = addr
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port)), nil
+}
+
+// nodeHost picks the address of the first connected and enabled node of the
+// profile. The panel sends a WireGuard inbound to every node of its profile,
+// so any live node serves it; a dead first node must not end up in configs.
+// With no live node the first one is used, as there is nothing better.
+func (m *Manager) nodeHost(ctx context.Context, cred panel.Credentials, p panel.Profile) (string, error) {
+	if len(p.NodeUUIDs) == 0 {
+		return "", fmt.Errorf("profile %q has no nodes: %w", p.Name, profile.ErrInvalid)
+	}
+	var first string
+	for i, id := range p.NodeUUIDs {
+		n, err := m.Panel.GetNode(ctx, cred, id)
+		if err != nil {
+			return "", err
+		}
+		if i == 0 {
+			first = n.Address
+		}
+		if n.IsConnected && !n.IsDisabled {
+			return n.Address, nil
+		}
+	}
+	return first, nil
 }
 
 // Users lists panel users for picking the owner of a new client.

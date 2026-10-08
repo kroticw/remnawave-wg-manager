@@ -91,6 +91,27 @@ func TestGetProfileParsesNodes(t *testing.T) {
 	}
 }
 
+func TestGetNodeParsesState(t *testing.T) {
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_, _ = w.Write([]byte(`{"response":{"uuid":"n1","address":"203.0.113.7","isConnected":true,"isDisabled":true}}`))
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
+	n, err := c.GetNode(context.Background(), Credentials{Token: "x"}, "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/api/nodes/n1" {
+		t.Fatalf("path %q", path)
+	}
+	want := Node{UUID: "n1", Address: "203.0.113.7", IsConnected: true, IsDisabled: true}
+	if n != want {
+		t.Fatalf("node %+v, want %+v", n, want)
+	}
+}
+
 func TestCreateUser(t *testing.T) {
 	var body map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
